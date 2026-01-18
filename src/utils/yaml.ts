@@ -2,12 +2,46 @@ import yaml from 'js-yaml';
 import { v4 as uuidv4 } from 'uuid';
 import { OrganizeConfig, Rule, Location, Filter, Action } from '../types';
 
+// Helper to check if a value is serializable (not a function)
+function isSerializable(value: any): boolean {
+  return typeof value !== 'function' && typeof value !== 'symbol';
+}
+
+// Helper to clean an object of non-serializable values
+function cleanObject(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (typeof obj === 'function' || typeof obj === 'symbol') {
+    return undefined;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanObject(item)).filter(item => item !== undefined);
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      if (isSerializable(value)) {
+        const cleanedValue = cleanObject(value);
+        if (cleanedValue !== undefined) {
+          cleaned[key] = cleanedValue;
+        }
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 // Convert internal config to YAML string
 export function configToYaml(config: OrganizeConfig): string {
   const cleanConfig = {
     rules: config.rules.map(rule => ruleToYamlObject(rule))
   };
-  return yaml.dump(cleanConfig, {
+  // Clean the config to remove any functions before dumping
+  const sanitized = cleanObject(cleanConfig);
+  return yaml.dump(sanitized, {
     indent: 2,
     lineWidth: 120,
     noRefs: true,
@@ -65,7 +99,11 @@ function ruleToYamlObject(rule: Rule): any {
   }
   
   // Convert actions
-  result.actions = rule.actions.map(action => actionToYamlObject(action));
+  if (rule.actions && rule.actions.length > 0) {
+    result.actions = rule.actions.map(action => actionToYamlObject(action));
+  } else {
+    result.actions = [];
+  }
   
   if (rule.tags && rule.tags.length > 0) {
     result.tags = rule.tags;
@@ -126,10 +164,11 @@ function locationToYamlObject(loc: Location): any {
 function filterToYamlObject(filter: Filter): any {
   const filterName = filter.negated ? `not ${filter.type}` : filter.type;
   
-  // Check if filter has any non-default config
+  // Check if filter has any non-default config (excluding functions)
   const configKeys = Object.keys(filter.config).filter(k => {
     const val = filter.config[k];
     return val !== undefined && val !== null && val !== '' && 
+           typeof val !== 'function' &&
            !(Array.isArray(val) && val.length === 0);
   });
   
@@ -171,10 +210,13 @@ function filterToYamlObject(filter: Filter): any {
     }
   }
   
-  // Full config
+  // Full config - only include serializable values
   const cleanConfig: any = {};
   for (const key of configKeys) {
-    cleanConfig[key] = filter.config[key];
+    const val = filter.config[key];
+    if (typeof val !== 'function') {
+      cleanConfig[key] = val;
+    }
   }
   
   return { [filterName]: cleanConfig };
@@ -182,10 +224,11 @@ function filterToYamlObject(filter: Filter): any {
 
 // Convert action to YAML object
 function actionToYamlObject(action: Action): any {
-  // Check if action has any non-default config
+  // Check if action has any non-default config (excluding functions)
   const configKeys = Object.keys(action.config).filter(k => {
     const val = action.config[k];
     return val !== undefined && val !== null && val !== '' &&
+           typeof val !== 'function' &&
            !(Array.isArray(val) && val.length === 0);
   });
   
@@ -237,10 +280,13 @@ function actionToYamlObject(action: Action): any {
     }
   }
   
-  // Full config
+  // Full config - only include serializable values
   const cleanConfig: any = {};
   for (const key of configKeys) {
-    cleanConfig[key] = action.config[key];
+    const val = action.config[key];
+    if (typeof val !== 'function') {
+      cleanConfig[key] = val;
+    }
   }
   
   return { [action.type]: cleanConfig };
@@ -309,7 +355,7 @@ function parseFilter(obj: any): Filter {
   let config: Record<string, any> = {};
   
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    config = value;
+    config = { ...value };
   } else if (value !== null && value !== undefined) {
     // Map value to appropriate config key based on filter type
     switch (type) {
@@ -337,7 +383,11 @@ function parseFilter(obj: any): Filter {
         break;
       default:
         // For other filters, try to infer the config
-        config = typeof value === 'object' ? value : { value };
+        if (typeof value === 'object') {
+          config = { ...value };
+        } else {
+          config = { value };
+        }
     }
   }
   
@@ -367,7 +417,7 @@ function parseAction(obj: any): Action {
   let config: Record<string, any> = {};
   
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    config = value;
+    config = { ...value };
   } else if (value !== null && value !== undefined) {
     // Map value to appropriate config key based on action type
     switch (key) {
@@ -397,11 +447,15 @@ function parseAction(obj: any): Action {
         if (typeof value === 'string') {
           config.outfile = value;
         } else {
-          config = value;
+          config = { ...value };
         }
         break;
       default:
-        config = typeof value === 'object' ? value : { value };
+        if (typeof value === 'object') {
+          config = { ...value };
+        } else {
+          config = { value };
+        }
     }
   }
   
