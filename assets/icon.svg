@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2196f3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1976d2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="80" fill="url(#gradient)"/>
+  <g fill="white">
+    <!-- Folder icon -->
+    <path d="M120 140h100l30 30h142c16.5 0 30 13.5 30 30v172c0 16.5-13.5 30-30 30H120c-16.5 0-30-13.5-30-30V170c0-16.5 13.5-30 30-30z"/>
+    <!-- Sort arrows -->
+    <path fill="#1976d2" d="M200 260l40-50 40 50h-25v70h-30v-70z"/>
+    <path fill="#1976d2" d="M310 310l-40 50-40-50h25v-70h30v70z"/>
+  </g>
+</svg>

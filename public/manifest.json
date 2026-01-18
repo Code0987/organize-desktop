@@ -1,0 +1,16 @@
+{
+  "short_name": "Organize Desktop",
+  "name": "Organize Desktop - File Management Automation",
+  "description": "A desktop application for the organize file management automation tool",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#2196f3",
+  "background_color": "#ffffff"
+}
