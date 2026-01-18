@@ -257,20 +257,28 @@ ipcMain.handle('run-organize', async (event, command, configPath, options = {}) 
       const childProcess = spawn(pythonPath, args, {
         cwd: workingDir,
         shell: true,
-        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+        env: { 
+          ...process.env, 
+          PYTHONUNBUFFERED: '1',
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1',
+          // Disable rich library's fancy output on Windows to avoid encoding issues
+          NO_COLOR: process.platform === 'win32' ? '1' : undefined,
+          TERM: process.platform === 'win32' ? 'dumb' : process.env.TERM
+        }
       });
 
       let stdout = '';
       let stderr = '';
 
       childProcess.stdout.on('data', (data) => {
-        const text = data.toString();
+        const text = data.toString('utf-8');
         stdout += text;
         sendOutput(text);
       });
 
       childProcess.stderr.on('data', (data) => {
-        const text = data.toString();
+        const text = data.toString('utf-8');
         stderr += text;
         sendError(text);
       });
@@ -329,7 +337,15 @@ ipcMain.handle('run-organize-stdin', async (event, command, configContent, optio
       const childProcess = spawn(pythonPath, args, {
         cwd: workingDir,
         shell: true,
-        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+        env: { 
+          ...process.env, 
+          PYTHONUNBUFFERED: '1',
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1',
+          // Disable rich library's fancy output on Windows to avoid encoding issues
+          NO_COLOR: process.platform === 'win32' ? '1' : undefined,
+          TERM: process.platform === 'win32' ? 'dumb' : process.env.TERM
+        }
       });
 
       let stdout = '';
@@ -351,13 +367,13 @@ ipcMain.handle('run-organize-stdin', async (event, command, configContent, optio
       }
 
       childProcess.stdout.on('data', (data) => {
-        const text = data.toString();
+        const text = data.toString('utf-8');
         stdout += text;
         sendOutput(text);
       });
 
       childProcess.stderr.on('data', (data) => {
-        const text = data.toString();
+        const text = data.toString('utf-8');
         stderr += text;
         sendError(text);
       });
