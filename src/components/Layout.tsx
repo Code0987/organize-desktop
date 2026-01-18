@@ -18,6 +18,7 @@ import {
   Button,
   Menu,
   MenuItem,
+  Badge,
 } from '@mui/material';
 import {
   FolderOpen as FolderIcon,
@@ -39,7 +40,6 @@ import {
 } from '@mui/icons-material';
 import { useApp } from '../context/AppContext';
 import { configToYaml, yamlToConfig } from '../utils/yaml';
-import OutputPanel from './OutputPanel';
 import LogHistory from './LogHistory';
 import { RunLog } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -76,8 +76,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const [recentMenuAnchor, setRecentMenuAnchor] = useState<null | HTMLElement>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
-  const [outputExpanded, setOutputExpanded] = useState(true);
-  const [showOutput, setShowOutput] = useState(true);
   const [logHistoryOpen, setLogHistoryOpen] = useState(false);
 
   const handleRecentClick = async (event: React.MouseEvent<HTMLElement>) => {
@@ -115,15 +113,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/', label: 'Home', icon: <FolderIcon /> },
     { path: '/rules', label: 'Visual Editor', icon: <RuleIcon /> },
     { path: '/yaml', label: 'YAML Editor', icon: <CodeIcon /> },
+    { path: '/output', label: 'Output', icon: <TerminalIcon />, badge: isRunning },
     { path: '/settings', label: 'Settings', icon: <SettingsIcon /> },
     { path: '/help', label: 'Help & Docs', icon: <HelpIcon /> },
   ];
 
   const runOrganize = async (simulate: boolean) => {
     setIsRunning(true);
-    setShowOutput(true);
-    setOutputExpanded(true);
     clearOutput();
+    
+    // Navigate to output page to show logs
+    navigate('/output');
     
     const command = simulate ? 'sim' : 'run';
     const startTime = Date.now();
@@ -289,17 +289,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           <Box sx={{ flexGrow: 1 }} />
 
-          {/* Toggle Output */}
-          <Tooltip title={showOutput ? "Hide Output" : "Show Output"}>
-            <IconButton 
-              size="small" 
-              onClick={() => setShowOutput(!showOutput)}
-              color={showOutput ? "primary" : "default"}
-            >
-              <TerminalIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-
           {/* Run History */}
           <Tooltip title="Run History">
             <IconButton 
@@ -435,9 +424,32 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   }}
                 >
                   <ListItemIcon sx={{ minWidth: 40 }}>
-                    {item.icon}
+                    {item.badge ? (
+                      <Badge color="error" variant="dot">
+                        {item.icon}
+                      </Badge>
+                    ) : (
+                      item.icon
+                    )}
                   </ListItemIcon>
                   <ListItemText primary={item.label} />
+                  {item.badge && (
+                    <Chip 
+                      label="Running" 
+                      size="small" 
+                      color="primary"
+                      sx={{ 
+                        height: 20, 
+                        fontSize: '0.7rem',
+                        animation: 'pulse 1.5s infinite',
+                        '@keyframes pulse': {
+                          '0%': { opacity: 1 },
+                          '50%': { opacity: 0.5 },
+                          '100%': { opacity: 1 },
+                        }
+                      }} 
+                    />
+                  )}
                 </ListItemButton>
               </ListItem>
             ))}
@@ -463,23 +475,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             flexGrow: 1, 
             overflow: 'auto', 
             p: 3,
-            pb: showOutput ? 1 : 3,
           }}
         >
           {children}
         </Box>
-
-        {/* Output Panel */}
-        {showOutput && (
-          <Box sx={{ px: 3, pb: 2 }}>
-            <OutputPanel 
-              expanded={outputExpanded}
-              onToggleExpand={() => setOutputExpanded(!outputExpanded)}
-              minHeight={150}
-              maxHeight={350}
-            />
-          </Box>
-        )}
       </Box>
     </Box>
   );

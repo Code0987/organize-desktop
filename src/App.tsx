@@ -8,6 +8,7 @@ import RuleEditorPage from './pages/RuleEditorPage';
 import YamlEditorPage from './pages/YamlEditorPage';
 import SettingsPage from './pages/SettingsPage';
 import HelpPage from './pages/HelpPage';
+import OutputPage from './pages/OutputPage';
 
 const App: React.FC = () => {
   const { settings } = useApp();
@@ -168,6 +169,7 @@ const App: React.FC = () => {
               <Route path="/yaml" element={<YamlEditorPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/help" element={<HelpPage />} />
+              <Route path="/output" element={<OutputPage />} />
             </Routes>
           </Layout>
         </Box>
