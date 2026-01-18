@@ -1,12 +1,17 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
   getSetting: (key) => ipcRenderer.invoke('get-setting', key),
+
+  // Log management
+  getRunLogs: () => ipcRenderer.invoke('get-run-logs'),
+  getRunLog: (logId) => ipcRenderer.invoke('get-run-log', logId),
+  deleteRunLog: (logId) => ipcRenderer.invoke('delete-run-log', logId),
+  clearAllLogs: () => ipcRenderer.invoke('clear-all-logs'),
+  saveRunLog: (logEntry) => ipcRenderer.invoke('save-run-log', logEntry),
 
   // File dialogs
   openFileDialog: (options) => ipcRenderer.invoke('open-file-dialog', options),

@@ -11,6 +11,7 @@ export interface Settings {
   showSystemFiles: boolean;
   confirmDangerousActions: boolean;
   maxRecentFiles: number;
+  maxLogHistory: number;
 }
 
 export interface PlatformInfo {
@@ -29,6 +30,19 @@ export interface OrganizeInstallStatus {
   installed: boolean;
   version?: string;
   error?: string;
+}
+
+// Run Log Types
+export interface RunLog {
+  id: string;
+  timestamp: string;
+  command: 'sim' | 'run';
+  configName: string;
+  configContent: string;
+  output: string[];
+  exitCode: number;
+  duration: number; // in milliseconds
+  success: boolean;
 }
 
 // Rule Types
@@ -147,6 +161,14 @@ export interface ElectronAPI {
   getSettings: () => Promise<Settings>;
   setSetting: (key: string, value: any) => Promise<boolean>;
   getSetting: (key: string) => Promise<any>;
+  
+  // Log management
+  getRunLogs: () => Promise<RunLog[]>;
+  getRunLog: (logId: string) => Promise<RunLog | undefined>;
+  deleteRunLog: (logId: string) => Promise<RunLog[]>;
+  clearAllLogs: () => Promise<RunLog[]>;
+  saveRunLog: (logEntry: RunLog) => Promise<string>;
+  
   openFileDialog: (options?: any) => Promise<{ canceled: boolean; filePaths: string[] }>;
   openFolderDialog: (options?: any) => Promise<{ canceled: boolean; filePaths: string[] }>;
   saveFileDialog: (options?: any) => Promise<{ canceled: boolean; filePath?: string }>;

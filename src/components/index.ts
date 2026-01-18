@@ -3,3 +3,4 @@ export { default as RuleEditor } from './RuleEditor';
 export { default as FilterEditor } from './FilterEditor';
 export { default as ActionEditor } from './ActionEditor';
 export { default as OutputPanel } from './OutputPanel';
+export { default as LogHistory } from './LogHistory';

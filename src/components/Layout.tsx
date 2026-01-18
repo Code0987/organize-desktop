@@ -35,9 +35,14 @@ import {
   Error as ErrorIcon,
   History as HistoryIcon,
   Delete as DeleteIcon,
+  Terminal as TerminalIcon,
 } from '@mui/icons-material';
 import { useApp } from '../context/AppContext';
-import { configToYaml } from '../utils/yaml';
+import { configToYaml, yamlToConfig } from '../utils/yaml';
+import OutputPanel from './OutputPanel';
+import LogHistory from './LogHistory';
+import { RunLog } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 const drawerWidth = 260;
 
@@ -62,12 +67,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     clearOutput,
     addOutput,
     config,
+    setConfig,
     yamlContent,
+    setYamlContent,
     viewMode,
+    output,
   } = useApp();
 
   const [recentMenuAnchor, setRecentMenuAnchor] = useState<null | HTMLElement>(null);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
+  const [outputExpanded, setOutputExpanded] = useState(true);
+  const [showOutput, setShowOutput] = useState(true);
+  const [logHistoryOpen, setLogHistoryOpen] = useState(false);
 
   const handleRecentClick = async (event: React.MouseEvent<HTMLElement>) => {
     const files = await window.electronAPI.getRecentFiles();
@@ -89,6 +100,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setRecentFiles([]);
   };
 
+  const handleSelectLog = (log: RunLog) => {
+    // Load the config from the log
+    try {
+      const parsedConfig = yamlToConfig(log.configContent);
+      setConfig(parsedConfig);
+      setYamlContent(log.configContent);
+    } catch (error) {
+      console.error('Failed to load config from log:', error);
+    }
+  };
+
   const navItems = [
     { path: '/', label: 'Home', icon: <FolderIcon /> },
     { path: '/rules', label: 'Visual Editor', icon: <RuleIcon /> },
@@ -99,53 +121,90 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const runOrganize = async (simulate: boolean) => {
     setIsRunning(true);
+    setShowOutput(true);
+    setOutputExpanded(true);
     clearOutput();
     
     const command = simulate ? 'sim' : 'run';
-    addOutput(`======================================\n`);
-    addOutput(`  Organize ${simulate ? 'Simulation' : 'Run'}\n`);
-    addOutput(`======================================\n\n`);
+    const startTime = Date.now();
+    const runOutput: string[] = [];
+    
+    const appendOutput = (text: string) => {
+      addOutput(text);
+      runOutput.push(text);
+    };
+    
+    appendOutput(`======================================\n`);
+    appendOutput(`  Organize ${simulate ? 'Simulation' : 'Run'}\n`);
+    appendOutput(`  ${new Date().toLocaleString()}\n`);
+    appendOutput(`======================================\n\n`);
+    
+    let configContent: string = '';
+    let exitCode = 0;
     
     try {
-      // Get the config content
-      let configContent: string;
-      
       if (viewMode === 'visual') {
-        addOutput(`[INFO] Converting visual config to YAML...\n`);
+        appendOutput(`[INFO] Converting visual config to YAML...\n`);
         try {
           configContent = configToYaml(config);
-          addOutput(`[INFO] Config converted successfully.\n\n`);
+          appendOutput(`[INFO] Config converted successfully.\n\n`);
         } catch (yamlError: any) {
-          addOutput(`[ERROR] Failed to convert config to YAML: ${yamlError.message}\n`);
+          appendOutput(`[ERROR] Failed to convert config to YAML: ${yamlError.message}\n`);
+          exitCode = -1;
           setIsRunning(false);
           return;
         }
       } else {
         configContent = yamlContent;
-        addOutput(`[INFO] Using YAML editor content.\n\n`);
+        appendOutput(`[INFO] Using YAML editor content.\n\n`);
       }
       
-      addOutput(`[INFO] Executing: organize ${command} --stdin\n\n`);
+      appendOutput(`[INFO] Executing: organize ${command} --stdin\n\n`);
       
       const result = await window.electronAPI.runOrganizeStdin(command, configContent, {
         format: 'default'
       });
       
-      addOutput(`\n======================================\n`);
+      exitCode = result.code;
+      
+      appendOutput(`\n======================================\n`);
       if (result.code === 0) {
-        addOutput(`  ✓ Completed successfully\n`);
+        appendOutput(`  ✓ Completed successfully\n`);
       } else if (result.code === -1) {
-        addOutput(`  ✗ Failed to start process\n`);
-        addOutput(`  Check Settings to verify Python path\n`);
+        appendOutput(`  ✗ Failed to start process\n`);
+        appendOutput(`  Check Settings to verify Python path\n`);
       } else {
-        addOutput(`  ✗ Process exited with code ${result.code}\n`);
+        appendOutput(`  ✗ Process exited with code ${result.code}\n`);
       }
-      addOutput(`======================================\n`);
+      appendOutput(`======================================\n`);
       
     } catch (error: any) {
-      addOutput(`\n[ERROR] ${error.message}\n`);
-      addOutput(`[ERROR] Stack: ${error.stack}\n`);
+      appendOutput(`\n[ERROR] ${error.message}\n`);
+      exitCode = -1;
     } finally {
+      const duration = Date.now() - startTime;
+      
+      // Save the log
+      const logEntry: RunLog = {
+        id: uuidv4(),
+        timestamp: new Date().toISOString(),
+        command: command as 'sim' | 'run',
+        configName: currentFilePath 
+          ? (currentFilePath.split('/').pop() || currentFilePath.split('\\').pop() || 'Untitled')
+          : 'Untitled',
+        configContent: configContent,
+        output: runOutput,
+        exitCode: exitCode,
+        duration: duration,
+        success: exitCode === 0,
+      };
+      
+      try {
+        await window.electronAPI.saveRunLog(logEntry);
+      } catch (error) {
+        console.error('Failed to save run log:', error);
+      }
+      
       setIsRunning(false);
     }
   };
@@ -155,7 +214,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     : 'Untitled';
 
   return (
-    <Box sx={{ display: 'flex', width: '100%' }}>
+    <Box sx={{ display: 'flex', width: '100%', height: '100vh' }}>
       <AppBar
         position="fixed"
         elevation={0}
@@ -229,6 +288,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Typography>
 
           <Box sx={{ flexGrow: 1 }} />
+
+          {/* Toggle Output */}
+          <Tooltip title={showOutput ? "Hide Output" : "Show Output"}>
+            <IconButton 
+              size="small" 
+              onClick={() => setShowOutput(!showOutput)}
+              color={showOutput ? "primary" : "default"}
+            >
+              <TerminalIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
+          {/* Run History */}
+          <Tooltip title="Run History">
+            <IconButton 
+              size="small" 
+              onClick={() => setLogHistoryOpen(true)}
+            >
+              <HistoryIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+
+          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
           {/* Organize status */}
           {organizeStatus && (
@@ -309,6 +391,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         )}
       </Menu>
 
+      {/* Log History Dialog */}
+      <LogHistory
+        open={logHistoryOpen}
+        onClose={() => setLogHistoryOpen(false)}
+        onSelectLog={handleSelectLog}
+      />
+
       <Drawer
         variant="permanent"
         sx={{
@@ -367,9 +456,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
+        
+        {/* Main content area */}
+        <Box 
+          sx={{ 
+            flexGrow: 1, 
+            overflow: 'auto', 
+            p: 3,
+            pb: showOutput ? 1 : 3,
+          }}
+        >
           {children}
         </Box>
+
+        {/* Output Panel */}
+        {showOutput && (
+          <Box sx={{ px: 3, pb: 2 }}>
+            <OutputPanel 
+              expanded={outputExpanded}
+              onToggleExpand={() => setOutputExpanded(!outputExpanded)}
+              minHeight={150}
+              maxHeight={350}
+            />
+          </Box>
+        )}
       </Box>
     </Box>
   );

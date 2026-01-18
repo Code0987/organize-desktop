@@ -18,14 +18,22 @@ const store = new Store({
     defaultConfigDir: '',
     showSystemFiles: false,
     confirmDangerousActions: true,
-    maxRecentFiles: 10
+    maxRecentFiles: 10,
+    maxLogHistory: 50
+  }
+});
+
+// Initialize logs store
+const logsStore = new Store({
+  name: 'run-logs',
+  defaults: {
+    logs: []
   }
 });
 
 let mainWindow;
 
 function createWindow() {
-  // Hide the default menu bar completely
   Menu.setApplicationMenu(null);
 
   mainWindow = new BrowserWindow({
@@ -81,6 +89,42 @@ function sendError(message) {
   }
 }
 
+// Log management functions
+function saveRunLog(logEntry) {
+  const logs = logsStore.get('logs') || [];
+  const maxLogs = store.get('maxLogHistory') || 50;
+  
+  // Add new log at the beginning
+  logs.unshift(logEntry);
+  
+  // Keep only maxLogs entries
+  const trimmedLogs = logs.slice(0, maxLogs);
+  
+  logsStore.set('logs', trimmedLogs);
+  return logEntry.id;
+}
+
+function getRunLogs() {
+  return logsStore.get('logs') || [];
+}
+
+function getRunLog(logId) {
+  const logs = logsStore.get('logs') || [];
+  return logs.find(log => log.id === logId);
+}
+
+function deleteRunLog(logId) {
+  const logs = logsStore.get('logs') || [];
+  const filteredLogs = logs.filter(log => log.id !== logId);
+  logsStore.set('logs', filteredLogs);
+  return filteredLogs;
+}
+
+function clearAllLogs() {
+  logsStore.set('logs', []);
+  return [];
+}
+
 // IPC Handlers
 
 // Settings handlers
@@ -95,6 +139,27 @@ ipcMain.handle('set-setting', (event, key, value) => {
 
 ipcMain.handle('get-setting', (event, key) => {
   return store.get(key);
+});
+
+// Log management handlers
+ipcMain.handle('get-run-logs', () => {
+  return getRunLogs();
+});
+
+ipcMain.handle('get-run-log', (event, logId) => {
+  return getRunLog(logId);
+});
+
+ipcMain.handle('delete-run-log', (event, logId) => {
+  return deleteRunLog(logId);
+});
+
+ipcMain.handle('clear-all-logs', () => {
+  return clearAllLogs();
+});
+
+ipcMain.handle('save-run-log', (event, logEntry) => {
+  return saveRunLog(logEntry);
 });
 
 // File dialog handlers
@@ -183,7 +248,6 @@ ipcMain.handle('run-organize', async (event, command, configPath, options = {}) 
 
     const workingDir = options.workingDir || os.homedir();
     
-    // Log the command being executed
     sendOutput(`[DEBUG] Python path: ${pythonPath}\n`);
     sendOutput(`[DEBUG] Arguments: ${args.join(' ')}\n`);
     sendOutput(`[DEBUG] Working directory: ${workingDir}\n`);
@@ -192,7 +256,7 @@ ipcMain.handle('run-organize', async (event, command, configPath, options = {}) 
     try {
       const childProcess = spawn(pythonPath, args, {
         cwd: workingDir,
-        shell: true,  // Use shell to handle path resolution
+        shell: true,
         env: { ...process.env, PYTHONUNBUFFERED: '1' }
       });
 
@@ -255,25 +319,22 @@ ipcMain.handle('run-organize-stdin', async (event, command, configContent, optio
 
     const workingDir = options.workingDir || os.homedir();
 
-    // Log the command being executed
     sendOutput(`[DEBUG] Python path: ${pythonPath}\n`);
     sendOutput(`[DEBUG] Arguments: ${args.join(' ')}\n`);
     sendOutput(`[DEBUG] Working directory: ${workingDir}\n`);
     sendOutput(`[DEBUG] Full command: ${pythonPath} ${args.join(' ')}\n`);
     sendOutput(`[DEBUG] Config content length: ${configContent.length} bytes\n\n`);
-    sendOutput(`[DEBUG] Config preview:\n${configContent.substring(0, 500)}${configContent.length > 500 ? '...' : ''}\n\n`);
 
     try {
       const childProcess = spawn(pythonPath, args, {
         cwd: workingDir,
-        shell: true,  // Use shell to handle path resolution
+        shell: true,
         env: { ...process.env, PYTHONUNBUFFERED: '1' }
       });
 
       let stdout = '';
       let stderr = '';
 
-      // Handle stdin
       if (childProcess.stdin) {
         childProcess.stdin.on('error', (error) => {
           sendError(`[ERROR] stdin error: ${error.message}\n`);
@@ -327,7 +388,6 @@ ipcMain.handle('check-organize-installed', async () => {
   return new Promise((resolve) => {
     const pythonPath = store.get('pythonPath') || 'python3';
     
-    // First check if python exists
     exec(`${pythonPath} --version`, (pyError, pyStdout, pyStderr) => {
       if (pyError) {
         resolve({ 
@@ -337,7 +397,6 @@ ipcMain.handle('check-organize-installed', async () => {
         return;
       }
       
-      // Then check if organize is installed
       exec(`${pythonPath} -m organize --version`, (error, stdout, stderr) => {
         if (error) {
           resolve({ 
