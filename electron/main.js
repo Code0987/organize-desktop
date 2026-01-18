@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, exec } = require('child_process');
@@ -24,6 +24,9 @@ const store = new Store({
 let mainWindow;
 
 function createWindow() {
+  // Hide the default menu bar completely
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -35,7 +38,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     },
     titleBarStyle: 'default',
-    icon: path.join(__dirname, '../assets/icon.png')
+    icon: path.join(__dirname, '../assets/icon.png'),
+    // Also hide menu bar on Windows/Linux
+    autoHideMenuBar: true
   });
 
   const startUrl = isDev
@@ -44,9 +49,8 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
-  }
+  // DevTools are NOT opened by default - even in development
+  // To open DevTools during development, press Ctrl+Shift+I (or Cmd+Option+I on macOS)
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -167,7 +171,7 @@ ipcMain.handle('run-organize', async (event, command, configPath, options = {}) 
       args.push('--format', options.format);
     }
 
-    const process = spawn(pythonPath, args, {
+    const childProcess = spawn(pythonPath, args, {
       env: { ...process.env },
       cwd: options.workingDir || require('os').homedir()
     });
@@ -175,21 +179,21 @@ ipcMain.handle('run-organize', async (event, command, configPath, options = {}) 
     let stdout = '';
     let stderr = '';
 
-    process.stdout.on('data', (data) => {
+    childProcess.stdout.on('data', (data) => {
       stdout += data.toString();
       mainWindow.webContents.send('organize-output', data.toString());
     });
 
-    process.stderr.on('data', (data) => {
+    childProcess.stderr.on('data', (data) => {
       stderr += data.toString();
       mainWindow.webContents.send('organize-error', data.toString());
     });
 
-    process.on('close', (code) => {
+    childProcess.on('close', (code) => {
       resolve({ code, stdout, stderr });
     });
 
-    process.on('error', (error) => {
+    childProcess.on('error', (error) => {
       resolve({ code: -1, stdout, stderr: error.message });
     });
   });
