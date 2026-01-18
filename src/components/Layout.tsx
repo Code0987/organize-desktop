@@ -18,7 +18,6 @@ import {
   Button,
   Menu,
   MenuItem,
-  ListItemSecondaryAction,
 } from '@mui/material';
 import {
   FolderOpen as FolderIcon,
@@ -34,11 +33,11 @@ import {
   FolderOpen as OpenIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Menu as MenuIcon,
   History as HistoryIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useApp } from '../context/AppContext';
+import { configToYaml } from '../utils/yaml';
 
 const drawerWidth = 260;
 
@@ -103,25 +102,49 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     clearOutput();
     
     const command = simulate ? 'sim' : 'run';
-    addOutput(`\n$ organize ${command}${simulate ? ' (simulation)' : ''}\n`);
+    addOutput(`======================================\n`);
+    addOutput(`  Organize ${simulate ? 'Simulation' : 'Run'}\n`);
+    addOutput(`======================================\n\n`);
     
     try {
-      // Use the current config content
-      const configContent = viewMode === 'visual' 
-        ? (await import('../utils/yaml')).configToYaml(config)
-        : yamlContent;
+      // Get the config content
+      let configContent: string;
+      
+      if (viewMode === 'visual') {
+        addOutput(`[INFO] Converting visual config to YAML...\n`);
+        try {
+          configContent = configToYaml(config);
+          addOutput(`[INFO] Config converted successfully.\n\n`);
+        } catch (yamlError: any) {
+          addOutput(`[ERROR] Failed to convert config to YAML: ${yamlError.message}\n`);
+          setIsRunning(false);
+          return;
+        }
+      } else {
+        configContent = yamlContent;
+        addOutput(`[INFO] Using YAML editor content.\n\n`);
+      }
+      
+      addOutput(`[INFO] Executing: organize ${command} --stdin\n\n`);
       
       const result = await window.electronAPI.runOrganizeStdin(command, configContent, {
         format: 'default'
       });
       
-      if (result.code !== 0) {
-        addOutput(`\n[Process exited with code ${result.code}]\n`);
+      addOutput(`\n======================================\n`);
+      if (result.code === 0) {
+        addOutput(`  ✓ Completed successfully\n`);
+      } else if (result.code === -1) {
+        addOutput(`  ✗ Failed to start process\n`);
+        addOutput(`  Check Settings to verify Python path\n`);
       } else {
-        addOutput('\n[Completed successfully]\n');
+        addOutput(`  ✗ Process exited with code ${result.code}\n`);
       }
+      addOutput(`======================================\n`);
+      
     } catch (error: any) {
-      addOutput(`\n[Error: ${error.message}]\n`);
+      addOutput(`\n[ERROR] ${error.message}\n`);
+      addOutput(`[ERROR] Stack: ${error.stack}\n`);
     } finally {
       setIsRunning(false);
     }
@@ -209,14 +232,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Organize status */}
           {organizeStatus && (
-            <Chip
-              size="small"
-              icon={organizeStatus.installed ? <CheckCircleIcon /> : <ErrorIcon />}
-              label={organizeStatus.installed ? organizeStatus.version : 'Not installed'}
-              color={organizeStatus.installed ? 'success' : 'error'}
-              variant="outlined"
-              sx={{ mr: 1 }}
-            />
+            <Tooltip title={organizeStatus.installed ? '' : (organizeStatus.error || 'Not installed')}>
+              <Chip
+                size="small"
+                icon={organizeStatus.installed ? <CheckCircleIcon /> : <ErrorIcon />}
+                label={organizeStatus.installed ? organizeStatus.version : 'Not installed'}
+                color={organizeStatus.installed ? 'success' : 'error'}
+                variant="outlined"
+                sx={{ mr: 1 }}
+              />
+            </Tooltip>
           )}
 
           {/* Run buttons */}
@@ -225,20 +250,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             size="small"
             startIcon={<SimulateIcon />}
             onClick={() => runOrganize(true)}
-            disabled={isRunning || !organizeStatus?.installed}
+            disabled={isRunning}
             sx={{ mr: 1 }}
           >
-            Simulate
+            {isRunning ? 'Running...' : 'Simulate'}
           </Button>
           <Button
             variant="contained"
             size="small"
             startIcon={<PlayIcon />}
             onClick={() => runOrganize(false)}
-            disabled={isRunning || !organizeStatus?.installed}
+            disabled={isRunning}
             color="primary"
           >
-            Run
+            {isRunning ? 'Running...' : 'Run'}
           </Button>
         </Toolbar>
       </AppBar>
