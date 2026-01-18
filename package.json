@@ -11,7 +11,7 @@
   "license": "MIT",
   "scripts": {
     "start": "concurrently \"npm run start:react\" \"wait-on http://localhost:3000 && npm run start:electron\"",
-    "start:react": "BROWSER=none react-scripts start",
+    "start:react": "cross-env BROWSER=none react-scripts start",
     "start:electron": "electron .",
     "build": "react-scripts build",
     "build:electron": "npm run build && electron-builder",
@@ -49,6 +49,7 @@
     "electron-builder": "^24.9.1",
     "react-scripts": "5.0.1",
     "typescript": "^4.9.5",
+    "cross-env": "^7.0.3",
     "wait-on": "^7.2.0"
   },
   "build": {
